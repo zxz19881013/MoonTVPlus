@@ -50,9 +50,11 @@ interface KeyInfo {
 
 export class OfflineDownloader {
   private baseDir: string;
-  private maxRetries = 3;
-  private retryDelay = 1000; // ms
-  private concurrency = 6;
+  private maxRetries = 5;  // 增加重试次数（源站偶发失败时更容易成功）
+  private retryDelay = 2000; // ms
+  // 并发数：可通过环境变量 OFFLINE_DOWNLOAD_CONCURRENCY 调整（默认 16）
+  // 4 核 32G 机器实测 16 是甜点，再大反而会因为 socket 限制变慢
+  private concurrency = parseInt(process.env.OFFLINE_DOWNLOAD_CONCURRENCY || '16', 10);
 
   constructor(baseDir: string) {
     this.baseDir = baseDir;
