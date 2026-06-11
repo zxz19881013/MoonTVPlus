@@ -24,9 +24,6 @@ export function OfflineDownloadEntry() {
     const cfg = (window as any).RUNTIME_CONFIG || {};
     setEnabled(cfg.ENABLE_OFFLINE_DOWNLOAD === true);
     try {
-      const authInfoRaw = (document.cookie.match(/user-favorites=([^;]+)/) ||
-        document.cookie.match(/auth=([^;]+/) ||
-        [])[1];
       // 简化处理：从 localStorage 读 authInfo（MoonTV 实际是这么存的）
       const authInfo = JSON.parse(localStorage.getItem('authInfo') || '{}');
       const role = authInfo?.role || authInfo?.data?.role;
