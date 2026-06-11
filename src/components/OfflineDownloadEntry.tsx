@@ -23,17 +23,30 @@ export function OfflineDownloadEntry() {
     setMounted(true);
     const cfg = (window as any).RUNTIME_CONFIG || {};
     setEnabled(cfg.ENABLE_OFFLINE_DOWNLOAD === true);
-    try {
-      // 简化处理：从 localStorage 读 authInfo（MoonTV 实际是这么存的）
-      const authInfo = JSON.parse(localStorage.getItem('authInfo') || '{}');
-      const role = authInfo?.role || authInfo?.data?.role;
-      setHasPermission(role === 'owner' || role === 'admin');
-    } catch {
-      setHasPermission(false);
-    }
+    // 简化：仅判断 RUNTIME_CONFIG 是否开启，不再判断 localStorage 中的 role
+    // （admin / user 都允许查看进度，非 admin 在面板里只能看不能操作）
   }, []);
 
-  if (!mounted || !enabled || !hasPermission) return null;
+  // 轮询任务列表，统计 downloading 数量显示在按钮右上角
+  const [activeCount, setActiveCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const tick = async () => {
+      try {
+        const r = await fetch('/api/offline-download', { credentials: 'include' });
+        if (r.ok) {
+          const d = await r.json();
+          const tasks = d.tasks || [];
+          setActiveCount(tasks.filter((t: any) => t.status === 'downloading' || t.status === 'pending').length);
+        }
+      } catch {}
+    };
+    tick();
+    const id = setInterval(tick, 3000);
+    return () => clearInterval(id);
+  }, [enabled]);
+
+  if (!mounted || !enabled) return null;
 
   return (
     <>
@@ -44,7 +57,7 @@ export function OfflineDownloadEntry() {
         style={{
           position: 'fixed',
           right: '20px',
-          bottom: '20px',
+          bottom: '90px',  /* 在现有 DownloadBubble 之上，避免重叠 */
           width: '56px',
           height: '56px',
           borderRadius: '50%',
@@ -76,6 +89,30 @@ export function OfflineDownloadEntry() {
           <polyline points="7 10 12 15 17 10" />
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
+        {activeCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              minWidth: '22px',
+              height: '22px',
+              padding: '0 6px',
+              borderRadius: '11px',
+              background: '#ef4444',
+              color: 'white',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 0 2px white',
+              animation: 'pulse 2s infinite',
+            }}
+          >
+            {activeCount}
+          </span>
+        )}
       </button>
       <OfflineDownloadPanel isOpen={isOpen} onClose={() => setIsOpen(false)} />
     </>
