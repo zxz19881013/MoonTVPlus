@@ -671,10 +671,30 @@ export class OfflineDownloader {
 
   /**
    * 删除下载任务的所有文件
+   * 递归清理：episode 目录 → video 目录 → source 目录（如果空了）
    */
   async deleteTask(task: OfflineDownloadTask): Promise<void> {
-    if (fs.existsSync(task.downloadDir)) {
-      fs.rmSync(task.downloadDir, { recursive: true, force: true });
+    if (!fs.existsSync(task.downloadDir)) return;
+
+    // 1. 删除 episode 目录（包含 playlist.m3u8 + 所有 ts 片段）
+    fs.rmSync(task.downloadDir, { recursive: true, force: true });
+
+    // 2. 向上清理空的父目录：video 目录 → source 目录
+    //    结构是 baseDir/source/videoId/epN
+    const baseDir = this.baseDir;
+    let currentDir = path.dirname(task.downloadDir); // .../videoId
+    while (currentDir !== baseDir && currentDir.startsWith(baseDir)) {
+      try {
+        // 只删空目录
+        if (fs.existsSync(currentDir) && fs.readdirSync(currentDir).length === 0) {
+          fs.rmdirSync(currentDir);
+          currentDir = path.dirname(currentDir);
+        } else {
+          break; // 父目录不空（还有其他集数或视频），停止清理
+        }
+      } catch {
+        break; // 任何错误都停止
+      }
     }
   }
 
