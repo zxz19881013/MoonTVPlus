@@ -14,6 +14,7 @@ import { listEnabledSourceScripts } from '@/lib/source-script';
 import { StartupCacheCleanup } from '../components/DanmakuCacheCleanup';
 import { DownloadBubble } from '../components/DownloadBubble';
 import { DownloadPanel } from '../components/DownloadPanel';
+import { OfflineDownloadEntry } from '../components/OfflineDownloadEntry';
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
 import RouteScrollReset from '../components/RouteScrollReset';
 import { SiteProvider } from '../components/SiteProvider';
@@ -352,6 +353,7 @@ export default async function RootLayout({
                 <ChatFloatingWindow />
                 <DownloadBubble />
                 <DownloadPanel />
+                <OfflineDownloadEntry />
               </DownloadProvider>
             </WatchRoomProvider>
           </SiteProvider>
