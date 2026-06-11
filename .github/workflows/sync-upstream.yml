@@ -1,0 +1,77 @@
+name: Sync upstream
+
+# 每周日北京时间凌晨 4 点跑一次 (cron: '0 20 * * 0' UTC = 4:00 AM 星期一北京时间, 改成 4:00 AM 周日北京时间)
+on:
+  schedule:
+    - cron: '0 20 * * 6'  # 周六 UTC 20:00 = 周日北京时间 04:00
+  workflow_dispatch:        # 也允许手动触发
+
+permissions:
+  contents: write           # 写 fork 的 main 分支
+  actions: write            # 触发其他 workflow (docker-image.yml)
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # 要完整历史才能 merge
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "zxz19881013"
+          git config user.email "372410318@qq.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/mtvpls/MoonTVPlus.git
+          git fetch upstream --depth=200
+
+      - name: Check if upstream has new commits
+        id: check
+        run: |
+          # 算 fork HEAD..upstream/main 的 commit 数
+          COUNT=$(git rev-list --count HEAD..upstream/main)
+          echo "upstream commits ahead: $COUNT"
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          if [ "$COUNT" = "0" ]; then
+            echo "has_new=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_new=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Merge upstream
+        if: steps.check.outputs.has_new == 'true'
+        run: |
+          set -e
+          # merge upstream/main, --no-ff 保留 merge commit
+          # 用 strategy-option ours 只在 offline-downloader.ts 上, 保留你 fork 的调优
+          # 其它文件冲突要手动解 — 大概率不会有 (merge base 已经吸收了大部分)
+          git merge --no-ff upstream/main -m "Sync upstream $(date +%Y-%m-%d)" || {
+            echo "==== merge conflict, attempting to resolve with ours for offline-downloader.ts ===="
+            if git diff --name-only --diff-filter=U | grep -q offline-downloader.ts; then
+              git checkout --ours src/lib/offline-downloader.ts
+              git add src/lib/offline-downloader.ts
+              git diff --name-only --diff-filter=U
+              # 其它冲突用 upstream 版本 (因为它们都是 upstream 独有的新功能)
+              for f in $(git diff --name-only --diff-filter=U); do
+                echo "Resolving $f with --theirs"
+                git checkout --theirs "$f"
+                git add "$f"
+              done
+              git commit --no-edit
+            else
+              echo "Unexpected conflict files, aborting"
+              git merge --abort
+              exit 1
+            fi
+          }
+
+      - name: Push to fork main
+        if: steps.check.outputs.has_new == 'true'
+        run: git push origin main
+
+
